@@ -54,6 +54,16 @@ bash scripts/package.sh
 
 The output is `dist/getcraft-vectorcraft-opendeck-linux-x86_64.zip`, containing exactly `wt.luizgustavo.getcraft.vectorcraft.sdPlugin/` at its root.
 
+## Local test installation
+
+On Linux, build and install the plugin into OpenDeck's normal local plugin directory with:
+
+```bash
+bash scripts/install-local.sh
+```
+
+The installer stages the package, replaces only this plugin, and keeps any previous installation in a timestamped backup directory. Restart OpenDeck after installation. To test against another OpenDeck configuration directory, set `OPENDECK_PLUGINS_DIR` before running the command.
+
 ## Platform roadmap
 
 | Platform | Status |
@@ -114,6 +124,8 @@ Use a sintaxe exata de `vectorcraft-cli --help` para operações de projeto, arq
 ## CI/CD, roadmap e contribuição
 
 PRs e pushes em `main` executam formatação, testes e `scripts/package.sh`. O ZIP vira artefato; uma tag como `v0.1.0` cria uma GitHub Release.
+
+Para gerar e instalar o plugin localmente no Linux, execute `bash scripts/install-local.sh`. O instalador prepara a nova versão, substitui somente este plugin e preserva qualquer versão anterior em um diretório de backup. Reinicie o OpenDeck após a instalação. Para testar outra configuração, defina `OPENDECK_PLUGINS_DIR` antes do comando.
 
 | Plataforma | Situação |
 | --- | --- |

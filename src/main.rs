@@ -9,7 +9,11 @@ use openaction::*;
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use simplelog::{ColorChoice, Config, LevelFilter, TermLogger, TerminalMode};
-use tokio::process::Command;
+use tokio::{
+    io::{AsyncBufReadExt, AsyncWriteExt, BufReader},
+    net::TcpStream,
+    process::Command,
+};
 
 const DEFAULT_EXECUTABLE: &str = "vectorcraft-cli";
 const CATALOG_ARGUMENTS: &[&str] = &["commands"];
@@ -17,6 +21,8 @@ const DEFAULT_ARGUMENTS: &str = r#"["commands"]"#;
 const MAX_ARGUMENTS: usize = 128;
 const MAX_ARGUMENT_BYTES: usize = 16 * 1024;
 const MAX_CATALOG_BYTES: usize = 2 * 1024 * 1024;
+const DEFAULT_CONTROL_PORT: u16 = 7979;
+const MAX_CONTROL_PARAMS_BYTES: usize = 16 * 1024;
 
 #[derive(Clone, Deserialize, Serialize)]
 #[serde(default, rename_all = "camelCase")]
@@ -33,6 +39,59 @@ struct CommandSettings {
     show_output: bool,
     /// Wall-clock limit for a process. Zero uses 30 seconds; maximum is 300 seconds.
     timeout_seconds: u64,
+}
+
+/// A direct control-channel action for a running VectorCraft desktop session.
+/// Unlike the batch CLI action, this preserves the user's document, selection and undo history.
+#[derive(Clone, Deserialize, Serialize)]
+#[serde(default, rename_all = "camelCase")]
+struct LiveControlSettings {
+    control_port: u16,
+    method: String,
+    command: String,
+    params: String,
+    rotary_method: String,
+    rotary_command: String,
+    rotary_params: String,
+    rotary_step: f64,
+    title: String,
+}
+
+impl Default for LiveControlSettings {
+    fn default() -> Self {
+        Self {
+            control_port: DEFAULT_CONTROL_PORT,
+            method: "engine.execute".into(),
+            command: "edit.undo".into(),
+            params: "{}".into(),
+            rotary_method: "".into(),
+            rotary_command: "".into(),
+            rotary_params: "{}".into(),
+            rotary_step: 1.0,
+            title: "Undo".into(),
+        }
+    }
+}
+
+impl LiveControlSettings {
+    fn port(&self) -> u16 {
+        if self.control_port == 0 {
+            DEFAULT_CONTROL_PORT
+        } else {
+            self.control_port
+        }
+    }
+
+    fn title(&self) -> String {
+        let title = self.title.trim();
+        if !title.is_empty() {
+            title.to_owned()
+        } else if !self.command.trim().is_empty() {
+            self.command.trim().to_owned()
+        } else {
+            "VectorCraft".into()
+        }
+    }
 }
 
 impl Default for CommandSettings {
@@ -135,6 +194,140 @@ fn parse_arguments(raw: &str) -> Result<Vec<String>, ExecutionError> {
             Ok(value.to_string())
         })
         .collect()
+}
+
+fn parse_control_params(raw: &str) -> Result<Value, ExecutionError> {
+    if raw.len() > MAX_CONTROL_PARAMS_BYTES {
+        return Err(ExecutionError::Configuration(format!(
+            "Control parameters may not exceed {MAX_CONTROL_PARAMS_BYTES} bytes."
+        )));
+    }
+    let value: Value = serde_json::from_str(raw.trim()).map_err(|error| {
+        ExecutionError::Configuration(format!("Parameters must be a JSON object: {error}"))
+    })?;
+    if !value.is_object() {
+        return Err(ExecutionError::Configuration(
+            "Parameters must be a JSON object.".into(),
+        ));
+    }
+    Ok(value)
+}
+
+fn substitute_rotary_tokens(value: Value, ticks: i16, step: f64) -> Value {
+    match value {
+        Value::String(token) if token == "$TICKS" => json!(ticks),
+        Value::String(token) if token == "$STEP" => json!(step),
+        Value::String(token) if token == "$AMOUNT" => json!(f64::from(ticks) * step),
+        Value::Array(items) => Value::Array(
+            items
+                .into_iter()
+                .map(|item| substitute_rotary_tokens(item, ticks, step))
+                .collect(),
+        ),
+        Value::Object(items) => Value::Object(
+            items
+                .into_iter()
+                .map(|(key, value)| (key, substitute_rotary_tokens(value, ticks, step)))
+                .collect(),
+        ),
+        value => value,
+    }
+}
+
+fn control_payload(method: &str, command: &str, params: Value) -> Result<Value, ExecutionError> {
+    let method = method.trim();
+    if method.is_empty() {
+        return Err(ExecutionError::Configuration(
+            "Choose a VectorCraft control method.".into(),
+        ));
+    }
+    let params = if method == "engine.execute" {
+        let command = command.trim();
+        if command.is_empty() {
+            return Err(ExecutionError::Configuration(
+                "An engine.execute action needs a VectorCraft command ID.".into(),
+            ));
+        }
+        json!({"command": command, "params": params})
+    } else {
+        params
+    };
+    Ok(json!({"id": 1, "method": method, "params": params}))
+}
+
+async fn send_control_request(port: u16, payload: Value) -> Result<String, ExecutionError> {
+    let operation = async {
+        let mut stream = TcpStream::connect(("127.0.0.1", port)).await.map_err(|error| {
+            ExecutionError::Process(format!("Could not reach VectorCraft at 127.0.0.1:{port}: {error}. Start it with --control {port}."))
+        })?;
+        let encoded = serde_json::to_vec(&payload).map_err(|error| {
+            ExecutionError::Configuration(format!("Could not encode the control request: {error}"))
+        })?;
+        stream.write_all(&encoded).await.map_err(|error| {
+            ExecutionError::Process(format!("Could not send the control request: {error}"))
+        })?;
+        stream.write_all(b"\n").await.map_err(|error| {
+            ExecutionError::Process(format!("Could not finish the control request: {error}"))
+        })?;
+        let mut line = String::new();
+        BufReader::new(stream)
+            .read_line(&mut line)
+            .await
+            .map_err(|error| {
+                ExecutionError::Process(format!("Could not read VectorCraft's reply: {error}"))
+            })?;
+        let reply: Value = serde_json::from_str(&line).map_err(|error| {
+            ExecutionError::Process(format!(
+                "VectorCraft returned an invalid control reply: {error}"
+            ))
+        })?;
+        if reply.get("ok").and_then(Value::as_bool) == Some(true) {
+            let result = reply
+                .get("result")
+                .cloned()
+                .unwrap_or(Value::Null)
+                .to_string();
+            return Ok(summary(result.as_bytes(), &[]));
+        }
+        Err(ExecutionError::Process(
+            reply
+                .get("error")
+                .and_then(Value::as_str)
+                .unwrap_or("VectorCraft rejected the control request.")
+                .to_owned(),
+        ))
+    };
+    tokio::time::timeout(Duration::from_secs(3), operation)
+        .await
+        .map_err(|_| ExecutionError::TimedOut(3))?
+}
+
+async fn run_live_press(settings: &LiveControlSettings) -> Result<String, ExecutionError> {
+    let params = parse_control_params(&settings.params)?;
+    send_control_request(
+        settings.port(),
+        control_payload(&settings.method, &settings.command, params)?,
+    )
+    .await
+}
+
+async fn run_live_rotation(
+    settings: &LiveControlSettings,
+    ticks: i16,
+) -> Result<String, ExecutionError> {
+    if ticks == 0 || settings.rotary_method.trim().is_empty() {
+        return Ok(String::new());
+    }
+    let params = substitute_rotary_tokens(
+        parse_control_params(&settings.rotary_params)?,
+        ticks,
+        settings.rotary_step,
+    );
+    send_control_request(
+        settings.port(),
+        control_payload(&settings.rotary_method, &settings.rotary_command, params)?,
+    )
+    .await
 }
 
 fn summary(stdout: &[u8], stderr: &[u8]) -> String {
@@ -300,6 +493,107 @@ async fn send_catalog(instance: &Instance, settings: &CommandSettings) {
 
 struct RunVectorCraftCli;
 
+struct VectorCraftLiveControl;
+
+async fn report_live(
+    instance: &Instance,
+    settings: &LiveControlSettings,
+    result: Result<String, ExecutionError>,
+    to_inspector: bool,
+) {
+    match result {
+        Ok(output) => {
+            let _ = instance.set_title(Some(settings.title()), None).await;
+            let _ = instance.show_ok().await;
+            if to_inspector {
+                let _ = instance
+                    .send_to_property_inspector(
+                        json!({"kind":"liveResult", "ok":true, "message":output}),
+                    )
+                    .await;
+            }
+        }
+        Err(error) => {
+            let message = error.to_string();
+            log::warn!("VectorCraft live control failed: {message}");
+            let _ = instance.set_title(Some("Offline".to_string()), None).await;
+            let _ = instance.show_alert().await;
+            if to_inspector {
+                let _ = instance
+                    .send_to_property_inspector(
+                        json!({"kind":"liveResult", "ok":false, "message":message}),
+                    )
+                    .await;
+            }
+        }
+    }
+}
+
+#[async_trait]
+impl Action for VectorCraftLiveControl {
+    const UUID: &'static str = "wt.luizgustavo.getcraft.vectorcraft.live";
+    type Settings = LiveControlSettings;
+
+    async fn key_down(
+        &self,
+        instance: &Instance,
+        settings: &Self::Settings,
+    ) -> OpenActionResult<()> {
+        report_live(instance, settings, run_live_press(settings).await, false).await;
+        Ok(())
+    }
+
+    async fn dial_down(
+        &self,
+        instance: &Instance,
+        settings: &Self::Settings,
+    ) -> OpenActionResult<()> {
+        self.key_down(instance, settings).await
+    }
+
+    async fn dial_rotate(
+        &self,
+        instance: &Instance,
+        settings: &Self::Settings,
+        ticks: i16,
+        _pressed: bool,
+    ) -> OpenActionResult<()> {
+        report_live(
+            instance,
+            settings,
+            run_live_rotation(settings, ticks).await,
+            false,
+        )
+        .await;
+        Ok(())
+    }
+
+    async fn will_appear(
+        &self,
+        instance: &Instance,
+        settings: &Self::Settings,
+    ) -> OpenActionResult<()> {
+        let _ = instance.set_title(Some(settings.title()), None).await;
+        Ok(())
+    }
+
+    async fn send_to_plugin(
+        &self,
+        instance: &Instance,
+        settings: &Self::Settings,
+        payload: &Value,
+    ) -> OpenActionResult<()> {
+        if payload.get("request").and_then(Value::as_str) == Some("testLive") {
+            let effective = payload
+                .get("settings")
+                .and_then(|value| serde_json::from_value::<LiveControlSettings>(value.clone()).ok())
+                .unwrap_or_else(|| settings.clone());
+            report_live(instance, &effective, run_live_press(&effective).await, true).await;
+        }
+        Ok(())
+    }
+}
+
 #[async_trait]
 impl Action for RunVectorCraftCli {
     const UUID: &'static str = "wt.luizgustavo.getcraft.vectorcraft.run";
@@ -361,6 +655,7 @@ async fn main() -> OpenActionResult<()> {
         ColorChoice::Never,
     );
     register_action(RunVectorCraftCli).await;
+    register_action(VectorCraftLiveControl).await;
     run(std::env::args().collect()).await
 }
 
@@ -407,5 +702,59 @@ mod tests {
             .timeout(),
             Duration::from_secs(1)
         );
+    }
+
+    #[test]
+    fn rotary_tokens_become_numbers_in_nested_json() {
+        let value = substitute_rotary_tokens(
+            json!({"dx":"$AMOUNT", "values":["$TICKS", "$STEP"]}),
+            -3,
+            2.5,
+        );
+        assert_eq!(value, json!({"dx":-7.5, "values":[-3, 2.5]}));
+    }
+
+    #[test]
+    fn engine_requests_wrap_the_command_and_params() {
+        assert_eq!(
+            control_payload("engine.execute", "edit.undo", json!({})).unwrap(),
+            json!({"id":1, "method":"engine.execute", "params":{"command":"edit.undo", "params":{}}})
+        );
+    }
+
+    #[test]
+    fn direct_control_requests_keep_their_params() {
+        assert_eq!(
+            control_payload("ui.tool.select", "", json!({"tool":"pen"})).unwrap(),
+            json!({"id":1, "method":"ui.tool.select", "params":{"tool":"pen"}})
+        );
+    }
+
+    #[tokio::test]
+    async fn sends_one_json_line_to_the_local_control_service() {
+        let listener = tokio::net::TcpListener::bind(("127.0.0.1", 0))
+            .await
+            .unwrap();
+        let port = listener.local_addr().unwrap().port();
+        let server = tokio::spawn(async move {
+            let (socket, _) = listener.accept().await.unwrap();
+            let mut reader = BufReader::new(socket);
+            let mut line = String::new();
+            reader.read_line(&mut line).await.unwrap();
+            let mut socket = reader.into_inner();
+            socket
+                .write_all(b"{\"id\":1,\"ok\":true,\"result\":{\"done\":true}}\n")
+                .await
+                .unwrap();
+            serde_json::from_str::<Value>(&line).unwrap()
+        });
+
+        let reply = send_control_request(port, json!({"id":1, "method":"ui.inspect", "params":{}}))
+            .await
+            .unwrap();
+        let request = server.await.unwrap();
+        assert_eq!(request["method"], "ui.inspect");
+        assert_eq!(request["params"], json!({}));
+        assert_eq!(reply, "{\"done\":true}");
     }
 }

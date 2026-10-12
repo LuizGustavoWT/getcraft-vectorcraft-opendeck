@@ -1,8 +1,8 @@
 {
   "Name": "VectorCraft CLI",
-  "Description": "Run VectorCraft CLI and automation commands safely from OpenDeck (Linux).",
+  "Description": "Live VectorCraft buttons and rotary controls, plus safe batch automation (Linux).",
   "Author": "LuizGustavoWT",
-  "Version": "0.1.0",
+  "Version": "0.2.0",
   "PluginUUID": "wt.luizgustavo.getcraft.vectorcraft",
   "CodePaths": {
     "x86_64-unknown-linux-gnu": "x86_64-unknown-linux-gnu/bin/getcraft-vectorcraft-opendeck"
@@ -12,6 +12,20 @@
   "Category": "GetCraft",
   "OS": [{ "Platform": "linux" }],
   "Actions": [{
+    "UUID": "wt.luizgustavo.getcraft.vectorcraft.live",
+    "Name": "VectorCraft Live Control",
+    "Icon": "assets/action",
+    "States": [{
+      "Image": "assets/action",
+      "TitleAlignment": "bottom",
+      "TitleColor": "#FFFFFF",
+      "FontSize": "12"
+    }],
+    "Controllers": ["Keypad", "Encoder"],
+    "SupportedInMultiActions": true,
+    "Tooltip": "Control the open VectorCraft document through its local control port.",
+    "PropertyInspectorPath": "propertyInspector/live.html"
+  }, {
     "UUID": "wt.luizgustavo.getcraft.vectorcraft.run",
     "Name": "Run VectorCraft CLI",
     "Icon": "assets/action",

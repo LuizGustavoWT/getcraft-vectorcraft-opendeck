@@ -50,4 +50,5 @@ echo "Installed $plugin_id in $destination"
 if [[ -n "$backup_dir" ]]; then
   echo "Previous installation preserved in $backup_dir"
 fi
-echo "Restart OpenDeck to load the installed plugin."
+echo "This installer never restarts or reloads OpenDeck."
+echo "When convenient, use OpenDeck's plugin reload control or restart it manually."

@@ -43,6 +43,7 @@
   </main>
   <script>
     const COMMAND_TEMPLATE = ["run", "--cmd", "$COMMAND", "--params", "{}"];
+    const DEFAULT_ARGUMENTS = '["commands"]';
     let socket, context;
     const $ = (id) => document.getElementById(id);
     const fields = ["executable", "arguments", "workingDirectory", "title", "timeoutSeconds", "showOutput"];
@@ -91,7 +92,7 @@
       const action = JSON.parse(actionInfo); context = action.context;
       const saved = (action.payload && action.payload.settings) || {};
       $("executable").value = saved.executable || "";
-      $("arguments").value = saved.arguments || "";
+      $("arguments").value = saved.arguments || DEFAULT_ARGUMENTS;
       $("workingDirectory").value = saved.workingDirectory || "";
       $("title").value = saved.title || "";
       $("timeoutSeconds").value = saved.timeoutSeconds || 30;
@@ -105,7 +106,7 @@
       $("applyCommand").addEventListener("click", () => {
         const id = $("command").value.trim();
         if (!id) return setStatus("Choose or type a command ID first.", true);
-        $("arguments").value = JSON.stringify(COMMAND_TEMPLATE.map((part) => part === "$COMMAND" ? id : part));
+        $("arguments").value = JSON.stringify(COMMAND_TEMPLATE.map((part) => part.replace("$COMMAND", id)));
         persist(); setStatus("Editable exec template added. Adjust parameters and CLI flags as needed.");
       });
     }

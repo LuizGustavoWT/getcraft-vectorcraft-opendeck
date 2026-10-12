@@ -56,13 +56,19 @@ The output is `dist/getcraft-vectorcraft-opendeck-linux-x86_64.zip`, containing 
 
 ## Local test installation
 
-On Linux, build and install the plugin into OpenDeck's normal local plugin directory with:
+On Linux, build the local installation package with:
 
 ```bash
 bash scripts/install-local.sh
 ```
 
-The installer stages the package, replaces only this plugin, and keeps any previous installation in a timestamped backup directory. It never restarts or reloads OpenDeck. When convenient, use OpenDeck's plugin reload control or restart it manually. To test against another OpenDeck configuration directory, set `OPENDECK_PLUGINS_DIR` before running the command.
+By default, the installer only builds the ZIP and does not change OpenDeck's active plugin directory. This prevents development plugins from disrupting an active setup. To deliberately test one plugin in the active OpenDeck installation, opt in explicitly:
+
+```bash
+OPENDECK_ALLOW_LIVE_INSTALL=1 bash scripts/install-local.sh
+```
+
+Install one development plugin at a time, then use OpenDeck's plugin reload control or restart it manually. The installer itself never restarts or reloads OpenDeck. To target a separate configuration, set `OPENDECK_PLUGINS_DIR` before running the command.
 
 ## Platform roadmap
 
@@ -125,7 +131,13 @@ Use a sintaxe exata de `vectorcraft-cli --help` para operações de projeto, arq
 
 PRs e pushes em `main` executam formatação, testes e `scripts/package.sh`. O ZIP vira artefato; uma tag como `v0.1.0` cria uma GitHub Release.
 
-Para gerar e instalar o plugin localmente no Linux, execute `bash scripts/install-local.sh`. O instalador prepara a nova versão, substitui somente este plugin e preserva qualquer versão anterior em um diretório de backup. Ele nunca reinicia nem recarrega o OpenDeck; quando for conveniente, recarregue o plugin pelo OpenDeck ou reinicie manualmente. Para testar outra configuração, defina `OPENDECK_PLUGINS_DIR` antes do comando.
+Para gerar o pacote local no Linux, execute `bash scripts/install-local.sh`. Por padrão, o instalador gera o ZIP e não altera o diretório de plugins ativo do OpenDeck, protegendo a configuração em uso. Para testar deliberadamente um único plugin na instalação ativa, confirme explicitamente:
+
+```bash
+OPENDECK_ALLOW_LIVE_INSTALL=1 bash scripts/install-local.sh
+```
+
+Instale um plugin de desenvolvimento por vez e então recarregue-o pelo OpenDeck ou reinicie manualmente. O instalador jamais reinicia ou recarrega o OpenDeck. Para usar outra configuração, defina `OPENDECK_PLUGINS_DIR` antes do comando.
 
 | Plataforma | Situação |
 | --- | --- |

@@ -62,7 +62,7 @@ On Linux, build and install the plugin into OpenDeck's normal local plugin direc
 bash scripts/install-local.sh
 ```
 
-The installer stages the package, replaces only this plugin, and keeps any previous installation in a timestamped backup directory. Restart OpenDeck after installation. To test against another OpenDeck configuration directory, set `OPENDECK_PLUGINS_DIR` before running the command.
+The installer stages the package, replaces only this plugin, and keeps any previous installation in a timestamped backup directory. It never restarts or reloads OpenDeck. When convenient, use OpenDeck's plugin reload control or restart it manually. To test against another OpenDeck configuration directory, set `OPENDECK_PLUGINS_DIR` before running the command.
 
 ## Platform roadmap
 
@@ -125,7 +125,7 @@ Use a sintaxe exata de `vectorcraft-cli --help` para operações de projeto, arq
 
 PRs e pushes em `main` executam formatação, testes e `scripts/package.sh`. O ZIP vira artefato; uma tag como `v0.1.0` cria uma GitHub Release.
 
-Para gerar e instalar o plugin localmente no Linux, execute `bash scripts/install-local.sh`. O instalador prepara a nova versão, substitui somente este plugin e preserva qualquer versão anterior em um diretório de backup. Reinicie o OpenDeck após a instalação. Para testar outra configuração, defina `OPENDECK_PLUGINS_DIR` antes do comando.
+Para gerar e instalar o plugin localmente no Linux, execute `bash scripts/install-local.sh`. O instalador prepara a nova versão, substitui somente este plugin e preserva qualquer versão anterior em um diretório de backup. Ele nunca reinicia nem recarrega o OpenDeck; quando for conveniente, recarregue o plugin pelo OpenDeck ou reinicie manualmente. Para testar outra configuração, defina `OPENDECK_PLUGINS_DIR` antes do comando.
 
 | Plataforma | Situação |
 | --- | --- |

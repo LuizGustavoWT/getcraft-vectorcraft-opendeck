@@ -7,7 +7,8 @@ readonly target="x86_64-unknown-linux-gnu"
 readonly script_dir="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
 readonly repo_root="$(cd -- "$script_dir/.." && pwd)"
 readonly config_home="${XDG_CONFIG_HOME:-$HOME/.config}"
-readonly plugins_dir="${OPENDECK_PLUGINS_DIR:-$config_home/opendeck/plugins}"
+readonly live_plugins_dir="$config_home/opendeck/plugins"
+readonly plugins_dir="${OPENDECK_PLUGINS_DIR:-$live_plugins_dir}"
 readonly destination="$plugins_dir/$plugin_id"
 readonly package_dir="$repo_root/dist/$plugin_id"
 
@@ -18,6 +19,15 @@ fi
 
 cd "$repo_root"
 bash scripts/package.sh
+
+active_plugins_dir="$(realpath -m -- "$live_plugins_dir")"
+target_plugins_dir="$(realpath -m -- "$plugins_dir")"
+if [[ "$target_plugins_dir" == "$active_plugins_dir" && "${OPENDECK_ALLOW_LIVE_INSTALL:-}" != "1" ]]; then
+  echo "Package built but not installed into the active OpenDeck plugin directory."
+  echo "Live installation is disabled by default so development plugins cannot affect an active OpenDeck session."
+  echo "To opt in for one plugin: OPENDECK_ALLOW_LIVE_INSTALL=1 bash scripts/install-local.sh"
+  exit 0
+fi
 
 if [[ ! -f "$package_dir/manifest.json" || ! -f "$package_dir/$target/bin/$binary_name" ]]; then
   echo "The package is incomplete: $package_dir" >&2

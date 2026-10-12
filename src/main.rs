@@ -45,7 +45,11 @@ impl CommandSettings {
     }
 
     fn timeout(&self) -> Duration {
-        Duration::from_secs(self.timeout_seconds.clamp(1, 300).max(30))
+        Duration::from_secs(if self.timeout_seconds == 0 {
+            30
+        } else {
+            self.timeout_seconds.clamp(1, 300)
+        })
     }
 
     fn title(&self) -> Option<String> {
@@ -366,5 +370,17 @@ mod tests {
     #[test]
     fn stderr_is_preferred_in_a_failure_summary() {
         assert_eq!(summary(b"normal", b"bad\nnews"), "bad news");
+    }
+
+    #[test]
+    fn honors_a_one_second_timeout() {
+        assert_eq!(
+            CommandSettings {
+                timeout_seconds: 1,
+                ..Default::default()
+            }
+            .timeout(),
+            Duration::from_secs(1)
+        );
     }
 }

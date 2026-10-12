@@ -28,9 +28,14 @@
         <option value="nudge">Nudge selection encoder</option>
       </select>
     </label>
-    <label>Control port
-      <input id="controlPort" type="number" min="1" max="65535" value="7979">
-    </label>
+    <div class="grid">
+      <label>Control host
+        <input id="controlHost" type="text" value="127.0.0.1">
+      </label>
+      <label>Control port
+        <input id="controlPort" type="number" min="1" max="65535" value="7979">
+      </label>
+    </div>
     <label>Key title
       <input id="title" type="text" placeholder="Undo">
     </label>
@@ -69,7 +74,7 @@
   </main>
   <script>
     const $ = (id) => document.getElementById(id);
-    const fields = ["preset", "controlPort", "title", "method", "command", "params", "rotaryMethod", "rotaryCommand", "rotaryParams", "rotaryStep"];
+    const fields = ["preset", "controlHost", "controlPort", "title", "method", "command", "params", "rotaryMethod", "rotaryCommand", "rotaryParams", "rotaryStep"];
     const presets = {
       undo: {title:"Undo", method:"engine.execute", command:"edit.undo"},
       redo: {title:"Redo", method:"engine.execute", command:"edit.redo"},
@@ -87,7 +92,7 @@
     let socket, context;
     function settings() {
       return {
-        controlPort: Number($("controlPort").value) || 7979,
+        controlHost: $("controlHost").value.trim(), controlPort: Number($("controlPort").value) || 7979,
         title: $("title").value.trim(), method: $("method").value.trim(), command: $("command").value.trim(), params: $("params").value.trim() || "{}",
         rotaryMethod: $("rotaryMethod").value.trim(), rotaryCommand: $("rotaryCommand").value.trim(), rotaryParams: $("rotaryParams").value.trim() || "{}",
         rotaryStep: Number($("rotaryStep").value) || 1,
@@ -109,7 +114,7 @@
     }
     function connectElgatoStreamDeckSocket(port, propertyInspectorUUID, registerEvent, info, actionInfo) {
       const action = JSON.parse(actionInfo); context = action.context; const saved = (action.payload && action.payload.settings) || {};
-      $("controlPort").value = saved.controlPort || 7979; $("title").value = saved.title || "Undo"; $("method").value = saved.method || "engine.execute"; $("command").value = saved.command || "edit.undo"; $("params").value = saved.params || "{}";
+      $("controlHost").value = saved.controlHost || "127.0.0.1"; $("controlPort").value = saved.controlPort || 7979; $("title").value = saved.title || "Undo"; $("method").value = saved.method || "engine.execute"; $("command").value = saved.command || "edit.undo"; $("params").value = saved.params || "{}";
       $("rotaryMethod").value = saved.rotaryMethod || ""; $("rotaryCommand").value = saved.rotaryCommand || ""; $("rotaryParams").value = saved.rotaryParams || "{}"; $("rotaryStep").value = saved.rotaryStep || 1;
       socket = new WebSocket(`ws://localhost:${port}`); socket.onopen = () => socket.send(JSON.stringify({event:registerEvent, uuid:propertyInspectorUUID})); socket.onmessage = receive;
       fields.forEach((id) => $(id).addEventListener(id === "preset" ? "change" : "input", () => { if (id === "preset") applyPreset($("preset").value); else { $("preset").value = "custom"; persist(); } }));

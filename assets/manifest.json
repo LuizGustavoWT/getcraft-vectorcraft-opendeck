@@ -1,8 +1,8 @@
 {
-  "Name": "VectorCraft CLI",
+  "Name": "VectorCraft Controls",
   "Description": "Live VectorCraft buttons and rotary controls, plus safe batch automation (Linux).",
   "Author": "LuizGustavoWT",
-  "Version": "0.2.1",
+  "Version": "0.3.0",
   "PluginUUID": "wt.luizgustavo.getcraft.vectorcraft",
   "CodePaths": {
     "x86_64-unknown-linux-gnu": "x86_64-unknown-linux-gnu/bin/getcraft-vectorcraft-opendeck"
@@ -12,11 +12,20 @@
   "Category": "GetCraft",
   "OS": [{ "Platform": "linux" }],
   "Actions": [{
+    "UUID": "wt.luizgustavo.getcraft.vectorcraft.launch",
+    "Name": "Open VectorCraft",
+    "Icon": "assets/launch",
+    "States": [{"Image":"assets/launch","TitleAlignment":"bottom","TitleColor":"#FFFFFF","FontSize":"12"}],
+    "Controllers": ["Keypad"],
+    "SupportedInMultiActions": true,
+    "Tooltip": "Open VectorCraft with its local control port already enabled.",
+    "PropertyInspectorPath": "propertyInspector/launch.html"
+  }, {
     "UUID": "wt.luizgustavo.getcraft.vectorcraft.live",
     "Name": "VectorCraft Live Control",
-    "Icon": "assets/action",
+    "Icon": "assets/live",
     "States": [{
-      "Image": "assets/action",
+      "Image": "assets/live",
       "TitleAlignment": "bottom",
       "TitleColor": "#FFFFFF",
       "FontSize": "12"
@@ -28,9 +37,9 @@
   }, {
     "UUID": "wt.luizgustavo.getcraft.vectorcraft.run",
     "Name": "Run VectorCraft CLI",
-    "Icon": "assets/action",
+    "Icon": "assets/terminal",
     "States": [{
-      "Image": "assets/action",
+      "Image": "assets/terminal",
       "TitleAlignment": "bottom",
       "TitleColor": "#FFFFFF",
       "FontSize": "12"

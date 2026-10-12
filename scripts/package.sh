@@ -14,7 +14,7 @@ rm -rf "$package_dir"
 rm -f "$output_dir/$zip_name"
 mkdir -p "$package_dir/$target/bin" "$package_dir/assets" "$package_dir/propertyInspector"
 cp "assets/manifest.json" "$package_dir/manifest.json"
-cp assets/*.svg "$package_dir/assets/"
+cp assets/*.svg assets/*.png "$package_dir/assets/"
 cp propertyInspector/* "$package_dir/propertyInspector/"
 cp "target/$target/release/$binary_name" "$package_dir/$target/bin/$binary_name"
 

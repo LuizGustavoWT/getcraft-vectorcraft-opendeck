@@ -2,7 +2,7 @@
   "Name": "VectorCraft CLI",
   "Description": "Live VectorCraft buttons and rotary controls, plus safe batch automation (Linux).",
   "Author": "LuizGustavoWT",
-  "Version": "0.2.0",
+  "Version": "0.2.1",
   "PluginUUID": "wt.luizgustavo.getcraft.vectorcraft",
   "CodePaths": {
     "x86_64-unknown-linux-gnu": "x86_64-unknown-linux-gnu/bin/getcraft-vectorcraft-opendeck"

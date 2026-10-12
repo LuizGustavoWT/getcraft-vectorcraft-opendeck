@@ -24,8 +24,12 @@ jobs:
         run: cargo fmt --all -- --check
       - name: Test
         run: cargo test --all-targets
-      - name: Create install ZIP
-        run: bash scripts/package.sh
+      - name: Package and test local installer
+        run: |
+          plugins_dir="$(mktemp -d)"
+          OPENDECK_PLUGINS_DIR="$plugins_dir" bash scripts/install-local.sh
+          test -f "$plugins_dir/wt.luizgustavo.getcraft.vectorcraft.sdPlugin/manifest.json"
+          test -x "$plugins_dir/wt.luizgustavo.getcraft.vectorcraft.sdPlugin/x86_64-unknown-linux-gnu/bin/getcraft-vectorcraft-opendeck"
       - uses: actions/upload-artifact@v4
         with:
           name: getcraft-vectorcraft-opendeck-linux-x86_64

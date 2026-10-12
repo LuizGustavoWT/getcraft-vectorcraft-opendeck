@@ -8,6 +8,9 @@ Each action stores an executable path and a JSON array of arguments. The plugin 
 
 ## Features
 
+- **VectorCraft Live Control** is a real control-surface action for the currently open document. Its ready-made controls include Undo/Redo, selection and grouping, Pen/Text/Rectangle tools, a zoom encoder and a nudge encoder. It sends a local request to the running app, so it keeps the active document, selection and undo history intact.
+- Encoders can send any documented control request on each turn. Their JSON supports numeric `$TICKS`, `$STEP`, and `$AMOUNT` tokens, making an Ulanzi D200 or another rotary deck useful for zooming, nudging, rotation, opacity and other numeric commands.
+
 - One configurable **Run VectorCraft CLI** action for keypad keys and encoders.
 - Supports every VectorCraft CLI subcommand, option, and future addition: the action forwards the exact JSON argument array you configure.
 - Loads the installed CLI's command or tool catalog in the Property Inspector and creates an app-specific, editable action template.
@@ -25,9 +28,23 @@ Each action stores an executable path and a JSON array of arguments. The plugin 
 
 1. Download `getcraft-vectorcraft-opendeck-linux-x86_64.zip` from the [latest release](../../releases/latest).
 2. In OpenDeck, open **Plugins** → **Install from file** and select the ZIP. Do not extract or rename the `.sdPlugin` directory.
-3. Drag **VectorCraft CLI → Run VectorCraft CLI** to a key.
-4. Enter the CLI path if `vectorcraft-cli` is not in `PATH`, then enter a JSON argument array.
-5. Use **Test command**. A green check means the CLI exited successfully; an alert means that its error summary is available in the Property Inspector and OpenDeck logs.
+3. For day-to-day editing, start the desktop application with its local control service, for example `vectorcraft --control 7979`, then drag **VectorCraft CLI → VectorCraft Live Control** to keys or encoders. Choose a ready-made control in its inspector.
+4. The **Run VectorCraft CLI** action remains available for safe file conversion and repeatable headless batch jobs.
+5. For batch jobs, enter the CLI path if `vectorcraft-cli` is not in `PATH`, then enter a JSON argument array and use **Test command**.
+
+## Live-control recipes
+
+The action only reaches `127.0.0.1`, but VectorCraft's control port has no authentication: enable it only while you are using your control surface. The bundled presets are the fastest way to get started:
+
+| Deck control | Result |
+| --- | --- |
+| Undo, Redo, Select all, Deselect | Direct editing commands on the open document |
+| Duplicate, Group, Ungroup | Selection workflow without leaving the canvas |
+| Pen, Text, Rectangle | Switches the live application tool |
+| Zoom encoder | Turn to zoom around the canvas; press runs a harmless state check |
+| Nudge encoder | Turn to move the current selection one point per detent; change **Amount per click** to suit the job |
+
+For additional app commands, select **Custom command**. Use `engine.execute` with a VectorCraft command ID and JSON object, or a protocol method such as `ui.tool.select`. An encoder's `$AMOUNT` expands to `ticks × amount per click` as a JSON number.
 
 ## Configuration and examples
 
@@ -92,12 +109,14 @@ MIT. VectorCraft and OpenDeck are independent upstream projects with their own l
 
 # Português do Brasil
 
-Plugin independente, somente para Linux, do [OpenDeck](https://github.com/nekename/OpenDeck) para executar todos os comandos disponíveis da [CLI do VectorCraft](https://github.com/storytold/vectorcraft) a partir de uma tecla do Stream Deck. O VectorCraft não é incluído no plugin: informe o `vectorcraft-cli` instalado na sua máquina.
+Plugin independente, somente para Linux, do [OpenDeck](https://github.com/nekename/OpenDeck) para transformar o Stream Deck em uma superfície de controle do [VectorCraft](https://github.com/storytold/vectorcraft). Há controles ao vivo para o documento aberto e, quando necessário, automações de lote via `vectorcraft-cli`; o VectorCraft não é incluído no plugin.
 
 Cada ação guarda o executável e uma lista JSON de argumentos. O plugin chama o executável diretamente, sem `sh -c` nem outro shell. Assim, JSON, caminhos com espaços e nomes de arquivos não confiáveis são passados com segurança.
 
 ## Recursos
 
+- **VectorCraft Live Control** opera diretamente o documento aberto: Undo/Redo, seleção, agrupamento, ferramentas Pen/Texto/Retângulo, encoder de zoom e encoder de nudge. A ação usa a porta de controle local, preservando documento, seleção e histórico de undo.
+- Encoders podem disparar qualquer requisição documentada a cada giro. Os tokens numéricos `$TICKS`, `$STEP` e `$AMOUNT` servem para zoom, nudge, rotação, opacidade e outros ajustes graduais no Ulanzi D200 ou em outro deck com rotary.
 - Ação configurável **Run VectorCraft CLI** para teclas e encoders.
 - Todos os subcomandos, opções e futuras adições da CLI: a ação repassa exatamente o vetor JSON configurado.
 - Catálogo dinâmico de comandos ou ferramentas da CLI no Property Inspector, com modelo de ação editável e específico do aplicativo.
@@ -111,9 +130,23 @@ Você precisa de Linux x86_64, OpenDeck compatível com OpenAction e VectorCraft
 
 1. Baixe `getcraft-vectorcraft-opendeck-linux-x86_64.zip` na [release mais recente](../../releases/latest).
 2. No OpenDeck, abra **Plugins** → **Install from file** e escolha o ZIP. Não extraia nem renomeie a pasta `.sdPlugin`.
-3. Arraste **VectorCraft CLI → Run VectorCraft CLI** para uma tecla.
-4. Configure o caminho da CLI, se necessário, e o vetor JSON de argumentos.
-5. Use **Test command**. O check verde indica sucesso; o alerta mostra que houve erro, cujo resumo aparece no inspetor e nos logs do OpenDeck.
+3. Para edição cotidiana, inicie o aplicativo com o serviço local, por exemplo `vectorcraft --control 7979`. Arraste **VectorCraft CLI → VectorCraft Live Control** para teclas ou encoders e escolha um controle pronto no inspetor.
+4. A ação **Run VectorCraft CLI** continua disponível para conversão de arquivos e automações de lote seguras.
+5. Para trabalhos em lote, configure o caminho da CLI, se necessário, o vetor JSON de argumentos e use **Test command**.
+
+## Receitas de controle ao vivo
+
+A ação só acessa `127.0.0.1`, mas a porta de controle do VectorCraft não possui autenticação: deixe-a ativa somente durante o uso da superfície de controle. Os controles prontos incluídos são:
+
+| Controle do deck | Resultado |
+| --- | --- |
+| Undo, Redo, Selecionar tudo, Desmarcar | Comandos diretos no documento aberto |
+| Duplicar, Agrupar, Desagrupar | Fluxo de seleção sem sair da tela de trabalho |
+| Pen, Texto, Retângulo | Troca a ferramenta do aplicativo em execução |
+| Encoder Zoom | Gire para dar zoom no canvas; pressionar faz uma consulta de estado inofensiva |
+| Encoder Nudge | Gire para mover a seleção atual um ponto por clique; ajuste **Amount per click** conforme o trabalho |
+
+Para outros comandos do aplicativo, escolha **Custom command**. Use `engine.execute` com o ID do comando VectorCraft e um objeto JSON ou um método do protocolo como `ui.tool.select`. Em um encoder, `$AMOUNT` vira o número JSON `ticks × amount per click`.
 
 ## Configuração
 

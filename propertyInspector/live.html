@@ -1,0 +1,120 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VectorCraft Live Control</title>
+  <link rel="stylesheet" href="run.css">
+</head>
+<body>
+  <main>
+    <h1>VectorCraft Live Control</h1>
+    <p class="hint">Controls the open document directly. Start VectorCraft with <code>--control 7979</code>; no headless CLI process is created.</p>
+
+    <label>Ready-made control
+      <select id="preset">
+        <option value="custom">Custom command</option>
+        <option value="undo">Undo</option>
+        <option value="redo">Redo</option>
+        <option value="selectAll">Select all</option>
+        <option value="deselect">Deselect</option>
+        <option value="duplicate">Duplicate selection</option>
+        <option value="group">Group selection</option>
+        <option value="ungroup">Ungroup selection</option>
+        <option value="pen">Pen tool</option>
+        <option value="text">Text tool</option>
+        <option value="rectangle">Rectangle tool</option>
+        <option value="zoom">Canvas zoom encoder</option>
+        <option value="nudge">Nudge selection encoder</option>
+      </select>
+    </label>
+    <label>Control port
+      <input id="controlPort" type="number" min="1" max="65535" value="7979">
+    </label>
+    <label>Key title
+      <input id="title" type="text" placeholder="Undo">
+    </label>
+
+    <details>
+      <summary>Button request</summary>
+      <label>Method
+        <input id="method" type="text" value="engine.execute" placeholder="engine.execute">
+      </label>
+      <label>Command ID <span class="optional">empty for non-engine methods</span>
+        <input id="command" type="text" value="edit.undo" placeholder="edit.undo">
+      </label>
+      <label>Parameters (JSON object)
+        <textarea id="params" rows="3" spellcheck="false">{}</textarea>
+      </label>
+    </details>
+
+    <details>
+      <summary>Rotary request <span class="optional">optional</span></summary>
+      <p class="hint">Use <code>"$TICKS"</code>, <code>"$STEP"</code>, or <code>"$AMOUNT"</code> as JSON string values. They become numbers on each turn.</p>
+      <label>Method
+        <input id="rotaryMethod" type="text" placeholder="ui.wheel or engine.execute">
+      </label>
+      <label>Command ID <span class="optional">empty for non-engine methods</span>
+        <input id="rotaryCommand" type="text" placeholder="object.move">
+      </label>
+      <label>Parameters (JSON object)
+        <textarea id="rotaryParams" rows="3" spellcheck="false">{}</textarea>
+      </label>
+      <label>Amount per click
+        <input id="rotaryStep" type="number" step="any" value="1">
+      </label>
+    </details>
+    <div class="buttons"><button id="test" type="button">Test button</button></div>
+    <p id="status" role="status">Pick a practical control, then drag this action to a key or encoder.</p>
+  </main>
+  <script>
+    const $ = (id) => document.getElementById(id);
+    const fields = ["preset", "controlPort", "title", "method", "command", "params", "rotaryMethod", "rotaryCommand", "rotaryParams", "rotaryStep"];
+    const presets = {
+      undo: {title:"Undo", method:"engine.execute", command:"edit.undo"},
+      redo: {title:"Redo", method:"engine.execute", command:"edit.redo"},
+      selectAll: {title:"Select all", method:"engine.execute", command:"select.all"},
+      deselect: {title:"Deselect", method:"engine.execute", command:"select.none"},
+      duplicate: {title:"Duplicate", method:"engine.execute", command:"edit.duplicate"},
+      group: {title:"Group", method:"engine.execute", command:"object.group"},
+      ungroup: {title:"Ungroup", method:"engine.execute", command:"object.ungroup"},
+      pen: {title:"Pen", method:"ui.tool.select", command:"", params:'{"tool":"pen"}'},
+      text: {title:"Text", method:"ui.tool.select", command:"", params:'{"tool":"type"}'},
+      rectangle: {title:"Rectangle", method:"ui.tool.select", command:"", params:'{"tool":"rectangle"}'},
+      zoom: {title:"Zoom", method:"ui.inspect", command:"", rotaryMethod:"ui.wheel", rotaryCommand:"", rotaryParams:'{"x":640,"y":450,"dy":"$TICKS","alt":true}'},
+      nudge: {title:"Nudge", method:"document.inspect", command:"", rotaryMethod:"engine.execute", rotaryCommand:"object.move", rotaryParams:'{"dx":"$AMOUNT","dy":0}', rotaryStep:1},
+    };
+    let socket, context;
+    function settings() {
+      return {
+        controlPort: Number($("controlPort").value) || 7979,
+        title: $("title").value.trim(), method: $("method").value.trim(), command: $("command").value.trim(), params: $("params").value.trim() || "{}",
+        rotaryMethod: $("rotaryMethod").value.trim(), rotaryCommand: $("rotaryCommand").value.trim(), rotaryParams: $("rotaryParams").value.trim() || "{}",
+        rotaryStep: Number($("rotaryStep").value) || 1,
+      };
+    }
+    function persist() { if (socket && context) socket.send(JSON.stringify({event:"setSettings", context, payload:settings()})); }
+    function status(message, error = false) { const target = $("status"); target.textContent = message || "Ready."; target.className = error ? "error" : ""; }
+    function applyPreset(name) {
+      const preset = presets[name]; if (!preset) return;
+      $("title").value = preset.title || ""; $("method").value = preset.method || "engine.execute"; $("command").value = preset.command || ""; $("params").value = preset.params || "{}";
+      $("rotaryMethod").value = preset.rotaryMethod || ""; $("rotaryCommand").value = preset.rotaryCommand || ""; $("rotaryParams").value = preset.rotaryParams || "{}"; $("rotaryStep").value = preset.rotaryStep || 1;
+      persist(); status(`${preset.title} is ready. You can still tailor the request below.`);
+    }
+    function receive(event) {
+      let message; try { message = JSON.parse(event.data); } catch (_) { return; }
+      if (message.event !== "sendToPropertyInspector" || !message.payload) return;
+      const payload = message.payload;
+      if (payload.kind === "liveResult") status(payload.ok ? (payload.message || "Control completed.") : (payload.message || "Control failed."), !payload.ok);
+    }
+    function connectElgatoStreamDeckSocket(port, propertyInspectorUUID, registerEvent, info, actionInfo) {
+      const action = JSON.parse(actionInfo); context = action.context; const saved = (action.payload && action.payload.settings) || {};
+      $("controlPort").value = saved.controlPort || 7979; $("title").value = saved.title || "Undo"; $("method").value = saved.method || "engine.execute"; $("command").value = saved.command || "edit.undo"; $("params").value = saved.params || "{}";
+      $("rotaryMethod").value = saved.rotaryMethod || ""; $("rotaryCommand").value = saved.rotaryCommand || ""; $("rotaryParams").value = saved.rotaryParams || "{}"; $("rotaryStep").value = saved.rotaryStep || 1;
+      socket = new WebSocket(`ws://localhost:${port}`); socket.onopen = () => socket.send(JSON.stringify({event:registerEvent, uuid:propertyInspectorUUID})); socket.onmessage = receive;
+      fields.forEach((id) => $(id).addEventListener(id === "preset" ? "change" : "input", () => { if (id === "preset") applyPreset($("preset").value); else { $("preset").value = "custom"; persist(); } }));
+      $("test").addEventListener("click", () => { persist(); status("Sending request to VectorCraft…"); if (socket && context) socket.send(JSON.stringify({event:"sendToPlugin", context, payload:{request:"testLive", settings:settings()}})); });
+    }
+  </script>
+</body>
+</html>

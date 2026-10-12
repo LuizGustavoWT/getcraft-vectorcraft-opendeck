@@ -1,0 +1,49 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    name: Test and package (Linux x86_64)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-unknown-linux-gnu
+      - uses: Swatinem/rust-cache@v2
+      - name: Check formatting
+        run: cargo fmt --all -- --check
+      - name: Test
+        run: cargo test --all-targets
+      - name: Create install ZIP
+        run: bash scripts/package.sh
+      - uses: actions/upload-artifact@v4
+        with:
+          name: getcraft-vectorcraft-opendeck-linux-x86_64
+          path: dist/getcraft-vectorcraft-opendeck-linux-x86_64.zip
+          if-no-files-found: error
+
+  release:
+    name: Publish release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: getcraft-vectorcraft-opendeck-linux-x86_64
+      - uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          files: getcraft-vectorcraft-opendeck-linux-x86_64.zip

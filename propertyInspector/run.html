@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>VectorCraft CLI</title>
+  <link rel="stylesheet" href="run.css">
+</head>
+<body>
+  <main>
+    <h1>VectorCraft CLI</h1>
+    <p class="hint">Arguments are a JSON array and are passed directly to the executable — no shell is used.</p>
+
+    <label>CLI executable
+      <input id="executable" type="text" placeholder="vectorcraft-cli">
+    </label>
+    <label>Arguments (JSON string array)
+      <textarea id="arguments" rows="5" spellcheck="false" placeholder='["exec", "timeline.play", "{}"]'></textarea>
+    </label>
+    <p class="hint">Every CLI subcommand is supported. Use the VectorCraft CLI help for flags and parameter shapes.</p>
+    <label>Working directory <span class="optional">optional</span>
+      <input id="workingDirectory" type="text" placeholder="/home/me/Videos/project">
+    </label>
+    <div class="grid">
+      <label>Key title <span class="optional">optional</span>
+        <input id="title" type="text" placeholder="Play">
+      </label>
+      <label>Timeout (seconds)
+        <input id="timeoutSeconds" type="number" min="1" max="300" value="30">
+      </label>
+    </div>
+    <label class="check"><input id="showOutput" type="checkbox"><span>Show command output on the key</span></label>
+    <div class="buttons">
+      <button id="test" type="button">Test command</button>
+      <button id="catalog" type="button" class="secondary">Load command catalog</button>
+    </div>
+    <label id="catalogWrap" hidden>Available engine command
+      <input id="command" list="commandList" type="text" placeholder="Load the catalog, then select or type an ID">
+      <datalist id="commandList"></datalist>
+    </label>
+    <button id="applyCommand" type="button" class="secondary" hidden>Use selected command as an exec template</button>
+    <p id="status" role="status">Configure the CLI path and arguments, then press the key.</p>
+  </main>
+  <script>
+    const COMMAND_TEMPLATE = ["run", "--cmd", "$COMMAND", "--params", "{}"];
+    let socket, context;
+    const $ = (id) => document.getElementById(id);
+    const fields = ["executable", "arguments", "workingDirectory", "title", "timeoutSeconds", "showOutput"];
+
+    function settings() {
+      return {
+        executable: $("executable").value.trim(),
+        arguments: $("arguments").value.trim(),
+        workingDirectory: $("workingDirectory").value.trim(),
+        title: $("title").value.trim(),
+        timeoutSeconds: Number($("timeoutSeconds").value) || 30,
+        showOutput: $("showOutput").checked,
+      };
+    }
+    function persist() {
+      if (socket && context) socket.send(JSON.stringify({event:"setSettings", context, payload:settings()}));
+    }
+    function request(name) {
+      persist();
+      if (socket && context) socket.send(JSON.stringify({event:"sendToPlugin", context, payload:{request:name, settings:settings()}}));
+    }
+    function setStatus(message, error = false) {
+      const target = $("status"); target.textContent = message || "Ready."; target.className = error ? "error" : "";
+    }
+    function loadCatalog(items) {
+      const list = $("commandList"); list.textContent = "";
+      items.forEach((item) => {
+        const option = document.createElement("option");
+        option.value = item.id;
+        option.label = item.label || item.id;
+        list.appendChild(option);
+      });
+      $("catalogWrap").hidden = false; $("applyCommand").hidden = false;
+      setStatus(`Loaded ${items.length} engine commands. Select an ID to create an editable template.`);
+    }
+    function receive(event) {
+      let message; try { message = JSON.parse(event.data); } catch (_) { return; }
+      if (message.event !== "sendToPropertyInspector" || !message.payload) return;
+      const payload = message.payload;
+      if (payload.kind === "catalog") {
+        if (payload.ok) loadCatalog(payload.items || []); else setStatus(payload.message || "Could not load catalog.", true);
+      }
+      if (payload.kind === "result") setStatus(payload.ok ? (payload.message || "Command completed.") : (payload.message || "Command failed."), !payload.ok);
+    }
+    function connectElgatoStreamDeckSocket(port, propertyInspectorUUID, registerEvent, info, actionInfo) {
+      const action = JSON.parse(actionInfo); context = action.context;
+      const saved = (action.payload && action.payload.settings) || {};
+      $("executable").value = saved.executable || "";
+      $("arguments").value = saved.arguments || "";
+      $("workingDirectory").value = saved.workingDirectory || "";
+      $("title").value = saved.title || "";
+      $("timeoutSeconds").value = saved.timeoutSeconds || 30;
+      $("showOutput").checked = Boolean(saved.showOutput);
+      socket = new WebSocket(`ws://localhost:${port}`);
+      socket.onopen = () => socket.send(JSON.stringify({event:registerEvent, uuid:propertyInspectorUUID}));
+      socket.onmessage = receive;
+      fields.forEach((id) => $(id).addEventListener(id === "showOutput" ? "change" : "input", persist));
+      $("test").addEventListener("click", () => request("test"));
+      $("catalog").addEventListener("click", () => { setStatus("Loading command catalog…"); request("catalog"); });
+      $("applyCommand").addEventListener("click", () => {
+        const id = $("command").value.trim();
+        if (!id) return setStatus("Choose or type a command ID first.", true);
+        $("arguments").value = JSON.stringify(COMMAND_TEMPLATE.map((part) => part === "$COMMAND" ? id : part));
+        persist(); setStatus("Editable exec template added. Adjust parameters and CLI flags as needed.");
+      });
+    }
+  </script>
+</body>
+</html>

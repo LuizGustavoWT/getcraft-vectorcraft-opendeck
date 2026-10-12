@@ -1,0 +1,19 @@
+[package]
+name = "getcraft-vectorcraft-opendeck"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "OpenDeck plugin for safely running VectorCraft CLI commands on Linux"
+repository = "https://github.com/LuizGustavoWT/getcraft-vectorcraft-opendeck"
+
+[[bin]]
+name = "getcraft-vectorcraft-opendeck"
+path = "src/main.rs"
+
+[dependencies]
+log = "0.4"
+openaction = "2.7"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+simplelog = "0.12"
+tokio = { version = "1", features = ["macros", "process", "rt-multi-thread", "time"] }
